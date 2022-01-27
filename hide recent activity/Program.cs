@@ -236,7 +236,7 @@ namespace hide_recent_activity
 
                     foreach (ulong game in arr)
                     {
-                        Console.WriteLine("[+] JobID " + Convert.ToDecimal(depotKey.JobID) + " with " + game + " Send " + depotKey.Result);
+                        Console.WriteLine("[+] JobID " + Convert.ToDecimal(depotKey.JobID) + " with " + game + " Sent " + depotKey.Result);
                         gamesPlaying.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
                         {
                             game_id = new GameID(game)
