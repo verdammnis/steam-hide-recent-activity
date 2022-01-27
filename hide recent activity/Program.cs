@@ -230,28 +230,30 @@ namespace hide_recent_activity
                 if (depotKey.Result == EResult.OK)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("[+] JobID: " + Convert.ToDecimal(depotKey.JobID));
-                    Console.WriteLine("[+] Result: " + Convert.ToDecimal(depotKey.Result));
+
+
+                    var gamesPlaying = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
+
+                    foreach (ulong game in arr)
+                    {
+                        Console.WriteLine("[+] JobID " + Convert.ToDecimal(depotKey.JobID) + " with " + game + " Send " + depotKey.Result);
+                        gamesPlaying.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
+                        {
+                            game_id = new GameID(game)
+                        });
+                        steamClient.Send(gamesPlaying);
+                    }
                 }
                 else
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(depotKey.Result);
+                    Console.WriteLine("[-] " + depotKey.Result);
+                    Console.ReadKey();
                 }
             }
-
-            var gamesPlaying = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
-
-            foreach (ulong game in arr)
-            {
-                gamesPlaying.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
-                {
-                    game_id = new GameID(game)
-                });
-            }
-            steamClient.Send(gamesPlaying);
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("\nRecent Activity Clean! :3");
+            isRunning = false;
             Thread.Sleep(2000);
             Environment.Exit(-1);
         }
