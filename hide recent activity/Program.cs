@@ -44,10 +44,7 @@ namespace hide_recent_activity
                    ▓▓▓▓▓╢▓▓▓▓▓▓▓▓▓▀╜
                   j▓▓▓▓▓▓▓▓▓▓▓▀▀
                    ╙▓▓▓▓▀▀`");
-            Console.WriteLine("\nCredits: vro, deep, sdev, Fermion");
-            Console.WriteLine("Credits: jake, fassu, wilko, konan, visualbug, cony");
-            Console.WriteLine("Credits: shiio, Skile, LordShadowBluRay, lexi, kovia, pls");
-            Console.WriteLine("Credits: yuzumi, sora, pearl, misfires, hana, alina, don cristii\n");
+            Console.WriteLine("\nCredits: vro (verdammnis)\n");
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.Write("> Login: "); username = Console.ReadLine();
             Console.Write("> Password: "); password = ReadPassword();
@@ -216,13 +213,13 @@ namespace hide_recent_activity
             else
             {
                 Console.WriteLine("[+] Steam Welcome");
-                Console.WriteLine("[+] logged on");
+                Console.WriteLine("[+] Logged on");
             }
 
             uint[] arr = { 635240, 635241, 635242, 635243 };
             var steamApps = steamClient.GetHandler<SteamApps>();
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("[+] calling shit...\n");
+            Console.WriteLine("[+] Called shit...\n");
             foreach (uint result in arr)
             {
                 var depotJob = steamApps.RequestFreeLicense(result);
