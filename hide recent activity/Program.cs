@@ -1,30 +1,29 @@
-﻿using SteamKit2;
+using SteamKit2;
+using SteamKit2.Authentication;
 using SteamKit2.Internal;
 using System;
-using System.IO;
-using System.Security.Cryptography;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace hide_recent_activity
-
 {
     class Program
     {
         static SteamClient steamClient;
         static SteamUser steamUser;
-        static CallbackManager manager;
-        static bool isRunning = false;
+        static CallbackManager manager;     
+        static bool isRunning = true;
 
         static string username;
         static string password;
-        static string authCode;
-        static string twoFactorAuth;
+        static string guardData = null;
 
         static void Main(string[] args)
         {
             Console.Title = "drain gang license product";
-            Console.WindowHeight = 20;
-            Console.WindowWidth = 65;
+            Console.WindowHeight = 24;
+            Console.WindowWidth = 100;
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
             Console.WriteLine(@"
     ░░░▒░░░░╫▐C '▒▒░   ▓     ░▓▓▓▒▓▒▒░░▒╨▓▓▓
     ░▒'    ╒`▓▓m       ╟▒   ¿░╙▓▓▓▒▒░▒░▒░░░░
@@ -44,286 +43,181 @@ namespace hide_recent_activity
                    ▓▓▓▓▓╢▓▓▓▓▓▓▓▓▓▀╜
                   j▓▓▓▓▓▓▓▓▓▓▓▀▀
                    ╙▓▓▓▓▀▀`");
-            Console.WriteLine("\nCredits: vro (verdammnis)\n");
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.Write("> Login: "); username = Console.ReadLine();
-            Console.Write("> Password: "); password = ReadPassword();
+
+            Console.WriteLine("\n          Credits: vro (verdammnis)");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("\n> Steam username: ");
+            username = Console.ReadLine();
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("> Steam password: ");
+            password = ReadPassword();
 
             steamClient = new SteamClient();
             manager = new CallbackManager(steamClient);
-
-
             steamUser = steamClient.GetHandler<SteamUser>();
 
             manager.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
             manager.Subscribe<SteamClient.DisconnectedCallback>(OnDisconnected);
             manager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
-            manager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
-            manager.Subscribe<SteamUser.UpdateMachineAuthCallback>(OnMachineAuth);
 
-
-            Run();
-        }
-        static void Run()
-        {
-            isRunning = true;
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Connecting to Steam...");
+            Console.ResetColor();
 
             steamClient.Connect();
 
             while (isRunning)
             {
-                manager.RunWaitAllCallbacks(TimeSpan.FromSeconds(5));
+                manager.RunWaitCallbacks(TimeSpan.FromSeconds(1));
             }
         }
 
-        static void OnConnected(SteamClient.ConnectedCallback callback)
+        static async void OnConnected(SteamClient.ConnectedCallback callback)
         {
             Console.ForegroundColor = ConsoleColor.Green;
-            byte[] sentryHash = null;
-            if (File.Exists("sentry.bin"))
-            {
-
-                byte[] sentryFile = File.ReadAllBytes("sentry.bin");
-                sentryHash = CryptoHelper.SHAHash(sentryFile);
-            }
+            Console.WriteLine("[+] Connected to Steam successfully\n");
+            Console.ResetColor();
 
             try
             {
-                steamUser.LogOn(new SteamUser.LogOnDetails
+                var authSession = await steamClient.Authentication.BeginAuthSessionViaCredentialsAsync(new AuthSessionDetails
                 {
                     Username = username,
                     Password = password,
-                    LoginID = 1,
-                    AuthCode = authCode,
-                    TwoFactorCode = twoFactorAuth,
-                    SentryFileHash = sentryHash
+                    IsPersistentSession = true,
+                    GuardData = guardData,
+                    Authenticator = new UserConsoleAuthenticator()
+                });
+
+                var pollResponse = await authSession.PollingWaitForResultAsync();
+
+                if (pollResponse.NewGuardData != null)
+                    guardData = pollResponse.NewGuardData;
+
+                steamUser.LogOn(new SteamUser.LogOnDetails
+                {
+                    Username = pollResponse.AccountName,
+                    AccessToken = pollResponse.RefreshToken,
+                    ShouldRememberPassword = true
                 });
             }
-            catch (ArgumentException)
+            catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Don't ignore input fields.");
-                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("[-] Authentication error: " + ex.Message);
+                isRunning = false;
+            }
+        }
+
+        static void OnLoggedOn(SteamUser.LoggedOnCallback callback)
+        {
+            if (callback.Result != EResult.OK)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[-] Login failed: {callback.Result}");
+                isRunning = false;
                 Console.ReadKey();
-                Environment.Exit(-1);
+                return;
             }
 
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("\n[+] Successfully logged into Steam");
+            Console.ResetColor();
+
+            PerformHideActivity();
+        }
+
+        static async void PerformHideActivity()
+        {
+            var steamApps = steamClient.GetHandler<SteamApps>();
+            uint[] appIds = { 635240, 635241, 635242, 635243 };
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\n[+] Requesting free licenses...\n");
+            Console.ResetColor();
+
+            foreach (uint appId in appIds)
+            {
+                var result = await steamApps.RequestFreeLicense(appId);
+                if (result.Result == EResult.OK)
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"[+] License granted → {appId}");
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"[-] Failed → {appId} | {result.Result}");
+                }
+                Console.ResetColor();
+            }
+
+            
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\n[+] Simulating game activity...\n");
+            Console.ResetColor();
+
+            var gamesPlaying = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
+
+            for (int i = 0; i < appIds.Length; i++)
+            {
+                ulong appId = appIds[i];
+
+                gamesPlaying.Body.games_played.Clear();
+                gamesPlaying.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
+                {
+                    game_id = new GameID(appId)
+                });
+
+                steamClient.Send(gamesPlaying);
+
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"[+] Playing → {appId}");
+                Console.ResetColor();
+
+                await Task.Delay(1200);
+            }
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("\n[+] Recent Activity has been successfully cleared!");
+            Console.ResetColor();
+
+            await Task.Delay(2500);
+            isRunning = false;
+            steamUser.LogOff();
         }
 
         static void OnDisconnected(SteamClient.DisconnectedCallback callback)
         {
-
-            Console.WriteLine("[+] Reconnecting in 5 secs...");
-            Thread.Sleep(TimeSpan.FromSeconds(5));
-            steamClient.Connect();
-
-
-        }
-
-
-        async static void OnLoggedOn(SteamUser.LoggedOnCallback callback)
-        {
-
-            bool isSteamGuard = callback.Result == EResult.AccountLogonDenied;
-            bool is2FA = callback.Result == EResult.AccountLoginDeniedNeedTwoFactor;
-
-            if (isSteamGuard || is2FA)
-            {
-                if (is2FA)
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.Write("[+] Your 2 factor auth code: ");
-                    twoFactorAuth = Console.ReadLine();
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.Write("[+] Auth code sent to the email: ");
-                    authCode = Console.ReadLine();
-                }
-                return;
-
-
-            }
-
-            if (callback.Result != EResult.OK)
-            {
-                if (callback.Result == EResult.RateLimitExceeded)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] RateLimitExceeded");
-                    isRunning = false;
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.ReadKey();
-                    return;
-                }
-
-                if (callback.Result == EResult.ServiceUnavailable)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] Steam down");
-                    isRunning = false;
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.ReadKey();
-                    return;
-                }
-
-                if (callback.Result == EResult.InvalidPassword)
-                {
-
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] Invalid password or login");
-                    isRunning = false;
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.ReadKey();
-                    return;
-                }
-
-                if (callback.Result == EResult.InvalidLoginAuthCode)
-                {
-
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] Invalid auth code");
-                    isRunning = false;
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.ReadKey();
-                    return;
-                }
-
-                if (callback.Result == EResult.TwoFactorCodeMismatch)
-                {
-
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] Invalid 2 factor auth code");
-                    isRunning = false;
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.ReadKey();
-                    return;
-                }
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("\n[-] Failed to login due to: " + callback.Result);
-                isRunning = false;
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.ReadKey();
-                return;
-
-
-            }
-            else
-            {
-                Console.WriteLine("[+] Steam Welcome");
-                Console.WriteLine("[+] Logged on");
-            }
-
-            uint[] arr = { 635240, 635241, 635242, 635243 };
-            var steamApps = steamClient.GetHandler<SteamApps>();
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("[+] Called shit...\n");
-            foreach (uint result in arr)
-            {
-                var depotJob = steamApps.RequestFreeLicense(result);
-                SteamApps.FreeLicenseCallback depotKey = await depotJob;
-                if (depotKey.Result == EResult.OK)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-
-
-                    var gamesPlaying = new ClientMsgProtobuf<CMsgClientGamesPlayed>(EMsg.ClientGamesPlayed);
-
-                    foreach (ulong game in arr)
-                    {
-                        Console.WriteLine("[+] JobID " + Convert.ToDecimal(depotKey.JobID) + " with " + game + " Sent " + depotKey.Result);
-                        gamesPlaying.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed
-                        {
-                            game_id = new GameID(game)
-                        });
-                        steamClient.Send(gamesPlaying);
-                    }
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[-] " + depotKey.Result);
-                    Console.ReadKey();
-                }
-            }
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("\nRecent Activity Clean! :3");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("\n[+] Disconnected from Steam");
+            Console.ResetColor();
             isRunning = false;
-            Thread.Sleep(2000);
-            Environment.Exit(-1);
         }
-
-
-        static void OnLoggedOff(SteamUser.LoggedOffCallback callback)
-        {
-
-            Console.WriteLine($"Logged off of Steam: {callback.Result}");
-            isRunning = false;
-            return;
-        }
-
-        static void OnMachineAuth(SteamUser.UpdateMachineAuthCallback callback)
-        {
-
-            int fileSize;
-            byte[] sentryHash;
-            using (var fs = File.Open("sentry.bin", FileMode.OpenOrCreate, FileAccess.ReadWrite))
-            {
-                fs.Seek(callback.Offset, SeekOrigin.Begin);
-                fs.Write(callback.Data, 0, callback.BytesToWrite);
-                fileSize = (int)fs.Length;
-
-                fs.Seek(0, SeekOrigin.Begin);
-                using var sha = SHA1.Create();
-                sentryHash = sha.ComputeHash(fs);
-            }
-
-            steamUser.SendMachineAuthResponse(new SteamUser.MachineAuthDetails
-            {
-                JobID = callback.JobID,
-
-                FileName = callback.FileName,
-
-                BytesWritten = callback.BytesToWrite,
-                FileSize = fileSize,
-                Offset = callback.Offset,
-
-                Result = EResult.OK,
-                LastError = 0,
-
-                OneTimePassword = callback.OneTimePassword,
-
-                SentryFileHash = sentryHash,
-            });
-
-        }
-
 
         public static string ReadPassword()
         {
             string password = "";
             ConsoleKeyInfo info = Console.ReadKey(true);
+
             while (info.Key != ConsoleKey.Enter)
             {
-
                 if (info.Key != ConsoleKey.Backspace)
                 {
                     Console.Write("*");
                     password += info.KeyChar;
                 }
-                else if (info.Key == ConsoleKey.Backspace)
+                else if (info.Key == ConsoleKey.Backspace && password.Length > 0)
                 {
-                    if (!string.IsNullOrEmpty(password))
-                    {
-
-                        password = password.Substring(0, password.Length - 1);
-                        int pos = Console.CursorLeft;
-                        Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                        Console.Write(" ");
-                        Console.SetCursorPosition(pos - 1, Console.CursorTop);
-                    }
+                    password = password.Substring(0, password.Length - 1);
+                    int pos = Console.CursorLeft;
+                    Console.SetCursorPosition(pos - 1, Console.CursorTop);
+                    Console.Write(" ");
+                    Console.SetCursorPosition(pos - 1, Console.CursorTop);
                 }
                 info = Console.ReadKey(true);
             }
